@@ -1,0 +1,180 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+      "type": "string",
+      "defaultValue": "UK South",
+	  "allowedValues": [
+        "UK South",
+        "UK West"
+		],
+      "metadata": {
+        "description": "Location for all resources."
+     }
+	    },
+        "virtualNetworkId": {
+            "type": "string",
+            "defaultValue": "",
+	  "allowedValues": [
+        "/subscriptions/820a7d68-aa9c-4554-ba68-ea104b0241c6/resourceGroups/AzureDeployTest/providers/Microsoft.Network/virtualNetworks/MyVNET"
+      ],
+       "metadata": {
+        "description": "Choose an existing virtual network."
+     }
+        },
+         "subnetName": {
+            "type": "string",
+               "defaultValue": "",
+	  "allowedValues": [
+        "Subnet"
+      ],
+       "metadata": {
+        "description": "Choose an existing virtual network."
+     }
+        },
+        
+        "vmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the new Virtual Machine."
+      }
+    },
+        "virtualMachineSize": {
+          "type": "string",
+      "defaultValue": "Standard_D2_v3",
+      "allowedValues": [
+        "Standard_D2_v3",
+        "Standard_D3_v3"
+	 ],
+      "metadata": {
+        "description": "Size of the virtual machine."
+      }
+    },
+        "adminUsername": {
+            "type": "string"
+        },
+        "adminPassword": {
+            "type": "secureString"
+        }
+    },
+    "variables": {
+         "osDiskType": "Standard_LRS",
+        "storageAccountKind": "Storage",
+        "storageAccountType": "Standard_LRS",
+        "publicIpAddressSku": "Basic",
+        "publicIpAddressType": "Dynamic",
+        "publicIPAddressName": "[concat(parameters('vmName'), 'vmPIP')]",
+        "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'storageacc')]",
+        "networkInterfaceName": "[concat(parameters('vmName'), 'vmNIC')]",
+        "vnetId": "[parameters('virtualNetworkId')]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
+    },
+    "resources": [
+        {
+            "name": "[variables('networkInterfaceName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-07-01",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIpAddresses/', variables('publicIpAddressName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "subnet": {
+                                "id": "[variables('subnetRef')]"
+                            },
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIpAddress": {
+                                "id": "[resourceId(resourceGroup().name, 'Microsoft.Network/publicIpAddresses', variables('publicIpAddressName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('publicIpAddressName')]",
+            "type": "Microsoft.Network/publicIpAddresses",
+            "apiVersion": "2019-02-01",
+            "location": "[parameters('location')]",
+            "properties": {
+                "publicIpAllocationMethod": "[variables('publicIpAddressType')]"
+            },
+            "sku": {
+                "name": "[variables('publicIpAddressSku')]"
+            }
+        },
+        {
+            "name": "[parameters('vmName')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-03-01",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', variables('networkInterfaceName'))]",
+                "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('virtualMachineSize')]"
+                },
+                "storageProfile": {
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "[variables('osDiskType')]"
+                        }
+                    },
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2016-Datacenter",
+                        "version": "latest"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[parameters('vmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]",
+                    "windowsConfiguration": {
+                        "enableAutomaticUpdates": true,
+                        "provisionVmAgent": true
+                    }
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[concat('https://', variables('storageAccountName'), '.blob.core.windows.net/')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "[variables('storageAccountName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-04-01",
+            "location": "[parameters('location')]",
+            "properties": {},
+            "kind": "[variables('storageAccountKind')]",
+            "sku": {
+                "name": "[variables('storageAccountType')]"
+            }
+        }
+    ],
+    "outputs": {
+        "adminUsername": {
+            "type": "string",
+            "value": "[parameters('adminUsername')]"
+        }
+    }
+}
